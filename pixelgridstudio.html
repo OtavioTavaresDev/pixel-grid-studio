@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>PixelGrid Studio</title>
+<style>
+:root {
+  --grid-cols: 10;
+  --grid-rows: 15;
+  --grid-gap: 1px;
+  --background-color: #f8fafc;
+  --controls-bg-color: #ffffff;
+  --text-color: #1e293b;
+  --button-bg-color: #e2e8f0;
+  --button-hover-bg-color: #cbd5e1;
+  --grid-border-color: #cbd5e1;
+}
+
+body.dark-mode {
+  --background-color: #1e293b;
+  --controls-bg-color: #334155;
+  --text-color: #f8fafc;
+  --button-bg-color: #475569;
+  --button-hover-bg-color: #64748b;
+  --grid-border-color: #475569;
+}
+
+*{box-sizing:border-box;margin:0;padding:0;}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Oxygen,Ubuntu,Cantarell,sans-serif;
+  background:var(--background-color);
+  color:var(--text-color);
+  line-height:1.6;
+  padding:1rem;
+  min-height:100vh;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  transition:background-color .3s,color .3s;
+}
+.app-container{
+  width:100%;
+  max-width:800px;
+  background:var(--controls-bg-color);
+  border-radius:.5rem;
+  box-shadow:0 4px 6px -1px rgba(0,0,0,.1);
+  padding:1.5rem;
+  margin:1rem;
+  transition:background-color .3s;
+}
+header{text-align:center;margin-bottom:1.5rem;}
+header h1{font-size:1.8rem;color:var(--text-color);margin-bottom:.5rem;}
+header p{opacity:.8;font-size:1rem;color:var(--text-color);} 
+.controls{background:var(--controls-bg-color);padding:1rem;border-radius:.5rem;margin-bottom:1.5rem;display:flex;flex-direction:column;gap:1rem;}
+.color-controls{display:flex;flex-wrap:wrap;gap:1rem;justify-content:space-between;}
+.color-picker-wrapper,.preset-colors-wrapper{display:flex;flex-direction:column;gap:.5rem;flex:1;min-width:200px;}
+label{font-weight:500;font-size:.9rem;color:var(--text-color);} 
+input[type=color]{width:100%;height:40px;border:1px solid var(--grid-border-color);border-radius:.375rem;cursor:pointer;background:#ffffff;}
+select{width:100%;padding:.5rem;border:1px solid var(--grid-border-color);border-radius:.375rem;background:var(--button-bg-color);color:var(--text-color);font-size:.9rem;cursor:pointer;}
+.mode-controls{display:flex;gap:.5rem;flex-wrap:wrap;}
+.control-button{padding:.5rem 1rem;background:var(--button-bg-color);border:none;border-radius:.375rem;cursor:pointer;font-size:.9rem;transition:background-color .2s;flex:1;min-width:120px;color:var(--text-color);} 
+.control-button:hover{background:var(--button-hover-bg-color);} 
+#paintMode{flex:1;min-width:150px;}
+#gridContainer{display:grid;grid-template-columns:repeat(var(--grid-cols),1fr);grid-template-rows:repeat(var(--grid-rows),1fr);gap:var(--grid-gap);width:100%;aspect-ratio:var(--grid-cols)/var(--grid-rows);background:var(--grid-border-color);border:1px solid var(--grid-border-color);touch-action:none;}
+.grid-cell{position:relative;background:#ffffff;width:100%;height:100%;overflow:hidden;}
+
+/* Clipping classes for rendering */
+.cell-half{position:absolute;width:100%;height:100%;} 
+.clip-top{clip-path:polygon(0 0,100% 0,100% 50%,0 50%);} 
+.clip-bottom{clip-path:polygon(0 50%,100% 50%,100% 100%,0 100%);} 
+.clip-left{clip-path:polygon(0 0,50% 0,50% 100%,0 100%);} 
+.clip-right{clip-path:polygon(50% 0,100% 0,100% 100%,50% 100%);} 
+.clip-d1{clip-path:polygon(0 0,100% 0,0 100%);} /* \ */
+.clip-d1b{clip-path:polygon(100% 0,100% 100%,0 100%);} /* complement */
+.clip-d2{clip-path:polygon(0 0,100% 100%,0 100%);} /* / */
+.clip-d2b{clip-path:polygon(0 0,100% 0,100% 100%);} /* complement */
+
+@media (max-width:600px){
+ :root{--grid-cols:10;--grid-rows:15;}/* same but responsive */
+ .color-controls{flex-direction:column;}
+ .mode-controls{flex-direction:column;}
+ .control-button,#paintMode{width:100%;}
+}
+
+/* Modal para exportação */
+.modal {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0,0,0,0.7);
+  z-index: 1000;
+  justify-content: center;
+  align-items: center;
+}
+
+.modal-content {
+  background-color: var(--controls-bg-color);
+  padding: 2rem;
+  border-radius: 0.5rem;
+  max-width: 500px;
+  width: 90%;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+.modal h2 {
+  margin-top: 0;
+  color: var(--text-color);
+}
+
+.modal p {
+  color: var(--text-color);
+  margin-bottom: 1.5rem;
+}
+
+.modal-buttons {
+  display: flex;
+  gap: 1rem;
+  justify-content: flex-end;
+}
+
+.modal-button {
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 0.375rem;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.modal-button.primary {
+  background-color: #3b82f6;
+  color: white;
+}
+
+.modal-button.secondary {
+  background-color: var(--button-bg-color);
+  color: var(--text-color);
+}
+
+/* Loading spinner */
+.loader {
+  border: 4px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  border-top: 4px solid #3b82f6;
+  width: 30px;
+  height: 30px;
+  animation: spin 1s linear infinite;
+  margin: 0 auto;
+  display: none;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+</style>
+</head>
+<body>
+<div class="app-container">
+  <header>
+    <h1>PixelGrid Studio</h1>
+    <p>Crie sua arte pixelada interativa</p>
+  </header>
+  <div class="controls">
+    <div class="color-controls">
+      <div class="color-picker-wrapper">
+        <label for="colorPicker">Cor Personalizada:</label>
+        <input type="color" id="colorPicker" value="#3b82f6" />
+      </div>
+      <div class="preset-colors-wrapper">
+        <label for="presetColors">Cores Tailwind:</label>
+        <select id="presetColors">
+          <option value="#3b82f6">blue-500</option>
+          <option value="#ef4444">red-500</option>
+          <option value="#10b981">emerald-500</option>
+          <option value="#f59e0b">amber-500</option>
+          <option value="#8b5cf6">violet-500</option>
+          <option value="#ec4899">pink-500</option>
+          <option value="#14b8a6">teal-500</option>
+          <option value="#f97316">orange-500</option>
+          <option value="#84cc16">lime-500</option>
+          <option value="#000000">black</option>
+          <option value="#ffffff">white</option>
+        </select>
+      </div>
+    </div>
+    <div class="mode-controls">
+      <button id="clearBtn" class="control-button">Limpar Tudo</button>
+      <select id="paintMode" title="Como pintar a próxima parte da célula">
+        <option value="full">Pintar Completo</option>
+        <option value="top">Metade Superior</option>
+        <option value="bottom">Metade Inferior</option>
+        <option value="left">Metade Esquerda</option>
+        <option value="right">Metade Direita</option>
+        <option value="d1">Diagonal (\\)</option>
+        <option value="d1b">Diagonal Oposta (\\ complemento)</option>
+        <option value="d2">Diagonal (/)</option>
+        <option value="d2b">Diagonal Oposta (/ complemento)</option>
+      </select>
+      <button id="toggleDarkMode" class="control-button">Modo Escuro</button>
+      <button id="exportPngBtn" class="control-button">Exportar PNG</button>
+      <button id="exportJsonBtn" class="control-button">Exportar Arquivo</button>
+      <label style="display:none" id="importLabel" for="importJsonInput">Importar Arquivo</label>
+      <input style="display:none" type="file" id="importJsonInput" accept="application/json" />
+    </div>
+  </div>
+  <div id="gridContainer" class="grid-container"></div>
+</div>
+
+<!-- Modal de exportação -->
+<div id="exportModal" class="modal">
+  <div class="modal-content">
+    <h2>Exportação Concluída</h2>
+    <p id="exportMessage">Sua arte foi exportada com sucesso!</p>
+    <div class="loader" id="exportLoader"></div>
+    <div class="modal-buttons">
+      <button id="closeModal" class="modal-button primary">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const GRID_COLS = 10;
+  const GRID_ROWS = 15;
+  const CELL_SIZE = 30; // Tamanho base da célula para renderização no canvas
+  const GRID_GAP = 1; // Gap entre as células
+
+  const gridContainer = document.getElementById('gridContainer');
+  const colorPicker = document.getElementById('colorPicker');
+  const presetColors = document.getElementById('presetColors');
+  const clearBtn = document.getElementById('clearBtn');
+  const paintModeSelect = document.getElementById('paintMode');
+  const toggleDarkModeBtn = document.getElementById('toggleDarkMode');
+  const exportPngBtn = document.getElementById('exportPngBtn');
+  const exportJsonBtn = document.getElementById('exportJsonBtn');
+  const importJsonInput = document.getElementById('importJsonInput');
+  const exportModal = document.getElementById('exportModal');
+  const exportMessage = document.getElementById('exportMessage');
+  const closeModal = document.getElementById('closeModal');
+  const exportLoader = document.getElementById('exportLoader');
+
+  let currentColor = '#3b82f6';
+  let paintMode = 'full';
+  let isPainting = false; // mouse/touch down
+
+  // Each cell will store an object {top,bottom,left,right,d1,d1b,d2,d2b,full}
+  // We render by updating 8 layered half-divs inside each cell
+
+  function createCell(row, col){
+    const cell = document.createElement('div');
+    cell.className = 'grid-cell';
+    cell.dataset.row = row;
+    cell.dataset.col = col;
+
+    // Create divs for all parts
+    const parts = ['full','top','bottom','left','right','d1','d1b','d2','d2b'];
+    parts.forEach(p => {
+      const el = document.createElement('div');
+      el.className = `cell-half part-${p}`;
+      // Apply clip class for visual representation
+      applyClipClass(el, p);
+      cell.appendChild(el);
+    });
+    cell._state = {full:null,top:null,bottom:null,left:null,right:null,d1:null,d1b:null,d2:null,d2b:null};
+    return cell;
+  }
+
+  // Applies CSS clip-path classes for visual representation
+  function applyClipClass(el, part){
+    // Remove all clip classes first
+    el.classList.remove('clip-top','clip-bottom','clip-left','clip-right','clip-d1','clip-d1b','clip-d2','clip-d2b');
+    
+    // Add the appropriate clip class
+    switch(part){
+      case 'top': el.classList.add('clip-top'); break;
+      case 'bottom': el.classList.add('clip-bottom'); break;
+      case 'left': el.classList.add('clip-left'); break;
+      case 'right': el.classList.add('clip-right'); break;
+      case 'd1': el.classList.add('clip-d1'); break;
+      case 'd1b': el.classList.add('clip-d1b'); break;
+      case 'd2': el.classList.add('clip-d2'); break;
+      case 'd2b': el.classList.add('clip-d2b'); break;
+      case 'full': 
+      default: 
+        // Full doesn't need a clip
+        break;
+    }
+  }
+
+  function initializeGrid(){
+    gridContainer.innerHTML = '';
+    for(let r = 0; r < GRID_ROWS; r++){
+      for(let c = 0; c < GRID_COLS; c++){
+        gridContainer.appendChild(createCell(r, c));
+      }
+    }
+  }
+
+  function paintCell(cell, color, mode){
+    if(!cell) return;
+    const st = cell._state;
+    if(!st) return;
+    
+    const colHex = (color || currentColor) || '#ffffff';
+
+    if(mode === 'full'){
+      // If painting full, clear all other parts and set full color
+      for(const k in st){st[k] = null;}
+      st.full = colHex;
+    } else {
+      // For partial paints, set the specific part's color
+      st[mode] = colHex;
+    }
+    renderCell(cell);
+  }
+
+  // Renders the cell's state to the DOM elements
+  function renderCell(cell){
+    const st = cell._state;
+    const children = cell.children;
+    const order = ['full','top','bottom','left','right','d1','d1b','d2','d2b'];
+    
+    // Set z-index for layering: subparts above full
+    for(let i = 0; i < order.length; i++){
+      const p = order[i];
+      const el = children[i];
+      const col = st[p];
+      
+      // Set background color
+      el.style.backgroundColor = col ? col : (p === 'full' ? '#ffffff' : 'transparent');
+      
+      // Set z-index: full is base layer (0), others are overlay (1)
+      el.style.zIndex = p === 'full' ? 0 : 1;
+    }
+  }
+
+  function renderAll(){
+    document.querySelectorAll('.grid-cell').forEach(renderCell);
+  }
+
+  function clearAll(){
+    document.querySelectorAll('.grid-cell').forEach(cell => {
+      const st = cell._state;
+      for(const k in st){st[k] = null;}
+      renderCell(cell);
+    });
+  }
+
+  function cellFromEventTarget(t){
+    return t?.closest?.('.grid-cell') || null;
+  }
+
+  function handlePointerDown(e){
+    const cell = cellFromEventTarget(e.target);
+    if(!cell) return;
+    isPainting = true;
+    paintCell(cell, currentColor, paintMode);
+  }
+  
+  function handlePointerMove(e){
+    if(!isPainting) return;
+    const cell = cellFromEventTarget(e.target);
+    if(!cell) return;
+    paintCell(cell, currentColor, paintMode); // real-time
+  }
+  
+  function handlePointerUp(){isPainting = false;}
+
+  // touch wrappers
+  function touchToCell(touch){
+    const el = document.elementFromPoint(touch.clientX, touch.clientY);
+    return cellFromEventTarget(el);
+  }
+  
+  function handleTouchStart(e){
+    e.preventDefault();
+    isPainting = true;
+    const cell = touchToCell(e.touches[0]);
+    if(cell) paintCell(cell, currentColor, paintMode);
+  }
+  
+  function handleTouchMove(e){
+    if(!isPainting) return; e.preventDefault();
+    const cell = touchToCell(e.touches[0]);
+    if(cell) paintCell(cell, currentColor, paintMode);
+  }
+  
+  function handleTouchEnd(){isPainting = false;}
+
+  // dark mode toggle
+  toggleDarkModeBtn.addEventListener('click',()=>{
+    document.body.classList.toggle('dark-mode');
+    toggleDarkModeBtn.textContent = document.body.classList.contains('dark-mode') ? 'Modo Claro' : 'Modo Escuro';
+  });
+
+  // color pickers
+  colorPicker.addEventListener('input',e=>{currentColor = e.target.value;});
+  presetColors.addEventListener('change',e=>{currentColor = e.target.value;colorPicker.value = currentColor;});
+
+  // clear
+  clearBtn.addEventListener('click',clearAll);
+
+  // paint mode
+  paintModeSelect.addEventListener('change',e=>{paintMode = e.target.value;});
+
+  // pointer events (mouse + pen)
+  gridContainer.addEventListener('mousedown',handlePointerDown);
+  gridContainer.addEventListener('mousemove',handlePointerMove);
+  document.addEventListener('mouseup',handlePointerUp);
+
+  // touch events
+  gridContainer.addEventListener('touchstart',handleTouchStart,{passive:false});
+  gridContainer.addEventListener('touchmove',handleTouchMove,{passive:false});
+  gridContainer.addEventListener('touchend',handleTouchEnd,{passive:false});
+
+  /* ---------------- EXPORT / IMPORT ---------------- */
+  function serialize(){
+    const data = []; // rows
+    document.querySelectorAll('.grid-cell').forEach(cell=>{
+      const st = cell._state; data.push({...st});
+    });
+    return {cols:GRID_COLS,rows:GRID_ROWS,cells:data};
+  }
+  
+  function downloadJson(obj){
+    const blob = new Blob([JSON.stringify(obj)],{type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'pixelgrid-art.json'; a.click();
+    setTimeout(()=>URL.revokeObjectURL(url),1000);
+    showExportMessage('Arquivo JSON exportado com sucesso!');
+  }
+  
+  exportJsonBtn.addEventListener('click',()=>{downloadJson(serialize());});
+
+  importJsonInput.addEventListener('change',e=>{
+    const file = e.target.files[0]; if(!file) return;
+    const reader = new FileReader();
+    reader.onload = ev=>{
+      try{
+        const data = JSON.parse(ev.target.result);
+        if(data.cols !== GRID_COLS || data.rows !== GRID_ROWS){
+          alert('Dimensões diferentes. (Esperado '+GRID_COLS+'x'+GRID_ROWS+')');
+          return;
+        }
+        const cells = document.querySelectorAll('.grid-cell');
+        data.cells.forEach((st,i)=>{Object.assign(cells[i]._state,st);});
+        renderAll();
+        showExportMessage('Arte importada com sucesso!');
+      }catch(err){alert('Erro ao importar: '+err.message);}  
+    };
+    reader.readAsText(file);
+  });
+
+  // expose hidden input through ctrl+o or double click exportJsonBtn alt
+  exportJsonBtn.addEventListener('contextmenu',e=>{e.preventDefault();importJsonInput.click();});
+  exportJsonBtn.addEventListener('dblclick',()=>importJsonInput.click());
+
+  /* ----------- EXPORT PNG (html2canvas) - CORREÇÃO ------------ */
+  
+  // Function to draw a single cell's state onto a canvas context
+  function drawCellToContext(ctx, cellState, x, y, size) {
+    const defaultBg = '#ffffff'; // Cor de fundo padrão para células vazias
+
+    // Draw full background first
+    if (cellState.full) {
+      ctx.fillStyle = cellState.full;
+      ctx.fillRect(x, y, size, size);
+    } else {
+      ctx.fillStyle = defaultBg;
+      ctx.fillRect(x, y, size, size);
+    }
+
+    // Draw partials on top
+    const parts = ['top', 'bottom', 'left', 'right', 'd1', 'd1b', 'd2', 'd2b'];
+    parts.forEach(p => {
+      const color = cellState[p];
+      if (color) {
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        switch (p) {
+          case 'top':
+            ctx.rect(x, y, size, size / 2);
+            break;
+          case 'bottom':
+            ctx.rect(x, y + size / 2, size, size / 2);
+            break;
+          case 'left':
+            ctx.rect(x, y, size / 2, size);
+            break;
+          case 'right':
+            ctx.rect(x + size / 2, y, size / 2, size);
+            break;
+          case 'd1': // Diagonal (\) - top-left to bottom-right
+            ctx.moveTo(x, y);
+            ctx.lineTo(x + size, y);
+            ctx.lineTo(x, y + size);
+            ctx.closePath();
+            break;
+          case 'd1b': // Complement of d1
+            ctx.moveTo(x + size, y);
+            ctx.lineTo(x + size, y + size);
+            ctx.lineTo(x, y + size);
+            ctx.closePath();
+            break;
+          case 'd2': // Diagonal (/) - bottom-left to top-right
+            ctx.moveTo(x, y);
+            ctx.lineTo(x + size, y + size);
+            ctx.lineTo(x, y + size);
+            ctx.closePath();
+            break;
+          case 'd2b': // Complement of d2
+            ctx.moveTo(x, y);
+            ctx.lineTo(x + size, y);
+            ctx.lineTo(x + size, y + size);
+            ctx.closePath();
+            break;
+        }
+        ctx.fill();
+      }
+    });
+  }
+
+  function exportPNG(){
+    // Show loader and processing message
+    exportLoader.style.display = 'block';
+    exportMessage.textContent = 'Processando...';
+    exportModal.style.display = 'flex';
+    
+    // Use setTimeout to allow the UI to update before heavy processing
+    setTimeout(() => {
+      try {
+        // Create a temporary canvas to draw the entire grid
+        const exportCanvas = document.createElement('canvas');
+        exportCanvas.width = GRID_COLS * (CELL_SIZE + GRID_GAP) - GRID_GAP;
+        exportCanvas.height = GRID_ROWS * (CELL_SIZE + GRID_GAP) - GRID_GAP;
+        const ctx = exportCanvas.getContext('2d');
+
+        // Fill the background of the export canvas with the grid border color
+        ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--grid-border-color');
+        ctx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
+
+        // Iterate through each cell and draw its state onto the export canvas
+        document.querySelectorAll('.grid-cell').forEach(cell => {
+          const row = parseInt(cell.dataset.row);
+          const col = parseInt(cell.dataset.col);
+          const cellState = cell._state;
+
+          const x = col * (CELL_SIZE + GRID_GAP);
+          const y = row * (CELL_SIZE + GRID_GAP);
+
+          drawCellToContext(ctx, cellState, x, y, CELL_SIZE);
+        });
+
+        // Use the generated canvas to create the PNG
+        const link = document.createElement('a');
+        link.download = 'pixelgrid-art.png';
+        link.href = exportCanvas.toDataURL('image/png');
+        link.click();
+        showExportMessage('Imagem PNG exportada com sucesso!');
+      } catch (error) {
+        showExportMessage('Erro ao exportar: ' + error.message);
+      } finally {
+        exportLoader.style.display = 'none';
+      }
+    }, 100);
+  }
+  
+  exportPngBtn.addEventListener('click',exportPNG);
+  
+  /* ---------- MODAL DE EXPORTAÇÃO ---------- */
+  function showExportMessage(message) {
+    exportMessage.textContent = message;
+    exportModal.style.display = 'flex';
+  }
+  
+  closeModal.addEventListener('click', () => {
+    exportModal.style.display = 'none';
+  });
+  
+  // Fechar modal ao clicar fora do conteúdo
+  window.addEventListener('click', (e) => {
+    if (e.target === exportModal) {
+      exportModal.style.display = 'none';
+    }
+  });
+
+  // init
+  initializeGrid();
+})();
+</script>
+</body>
+</html>
